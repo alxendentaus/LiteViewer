@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lite Viewer · 轻量日志 / 代码查看器</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --fg: #d4d4d4;
+    --toolbar: #252526;
+    --panel: #2d2d30;
+    --border: #3e3e42;
+    --gutter: #1e1e1e;
+    --ln: #858585;
+    --ln-cur: #c6c6c6;
+    --cur-line: rgba(255,255,255,.07);
+    --input: #3c3c3c;
+    --btn: #3c3c3c;
+    --btn-hover: #4a4a4a;
+    --error: #f14c4c;
+    --warn: #cca700;
+    --info: #3794ff;
+    --debug: #9d9d9d;
+    --trace: #b5cea8;
+    --kw: #569cd6;
+    --str: #ce9178;
+    --com: #6a9955;
+    --num: #b5cea8;
+    --hit-bg: #6a4a00;
+    --hit-fg: #ffe680;
+    --tag: #c586c0;
+    --time: #4ec9b0;
+  }
+  body.light {
+    --bg: #ffffff;
+    --fg: #333333;
+    --toolbar: #f3f3f3;
+    --panel: #fafafa;
+    --border: #d4d4d4;
+    --gutter: #f7f7f7;
+    --ln: #999999;
+    --ln-cur: #333333;
+    --cur-line: rgba(0,0,0,.05);
+    --input: #ffffff;
+    --btn: #ffffff;
+    --btn-hover: #e8e8e8;
+    --error: #e51400;
+    --warn: #bf8803;
+    --info: #007acc;
+    --debug: #888888;
+    --trace: #098658;
+    --kw: #0000ff;
+    --str: #a31515;
+    --com: #008000;
+    --num: #098658;
+    --hit-bg: #ffe680;
+    --hit-fg: #000000;
+    --tag: #af00db;
+    --time: #098658;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Cascadia Code", "Fira Code", Consolas, "Microsoft YaHei Mono", monospace;
+    background: var(--bg); color: var(--fg); font-size: 13px; overflow: hidden;
+  }
+  .app { display: flex; flex-direction: column; height: 100%; }
+
+  .toolbar {
+    background: var(--toolbar); border-bottom: 1px solid var(--border);
+    padding: 8px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  button, select, input {
+    font-family: inherit; font-size: 12px; color: var(--fg);
+    background: var(--btn); border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 9px; outline: none;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--btn-hover); }
+  button.primary { background: #0e639c; border-color: #0e639c; color: #fff; }
+  button.primary:hover { background: #1177bb; }
+  button.on { background: #0e639c; border-color: #0e639c; color: #fff; }
+  input[type=text] { background: var(--input); min-width: 180px; }
+  .sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+  .fname { color: var(--fg); opacity: .85; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .spacer-flex { flex: 1; }
+  label.chk { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+  label.chk input { padding: 0; }
+
+  .main { flex: 1; display: flex; position: relative; min-height: 0; background: var(--bg); }
+  .gutter {
+    width: 68px; flex: none; overflow: hidden; background: var(--gutter);
+    border-right: 1px solid var(--border); position: relative;
+  }
+  .gutter-inner { position: relative; width: 100%; }
+  .ln {
+    position: absolute; right: 12px; height: 21px; line-height: 21px;
+    color: var(--ln); font-size: 12px; white-space: nowrap;
+  }
+  .ln.cur { color: var(--ln-cur); font-weight: bold; }
+
+  .viewport { flex: 1; overflow: auto; position: relative; outline: none; }
+  .spacer { position: relative; width: 100%; min-height: 100%; }
+  .lines { position: absolute; inset: 0; }
+  .line {
+    position: absolute; left: 0; right: 0; height: 21px; line-height: 21px;
+    padding: 0 14px; white-space: pre; tab-size: 4;
+  }
+  .line.cur { background: var(--cur-line); }
+  .line:hover { background: var(--cur-line); }
+
+  .tok-error { color: var(--error); font-weight: bold; }
+  .tok-fatal { color: var(--error); font-weight: bold; }
+  .tok-warn { color: var(--warn); font-weight: bold; }
+  .tok-info { color: var(--info); }
+  .tok-debug { color: var(--debug); }
+  .tok-trace { color: var(--trace); }
+  .tok-time { color: var(--time); }
+  .tok-tag { color: var(--tag); }
+  .tok-keyword { color: var(--kw); }
+  .tok-string  { color: var(--str); }
+  .tok-comment { color: var(--com); font-style: italic; }
+  .tok-number  { color: var(--num); }
+  .hit { background: var(--hit-bg); color: var(--hit-fg); border-radius: 2px; }
+
+  .empty {
+    position: absolute; inset: 68px 0 26px 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    color: var(--ln); font-size: 14px; pointer-events: none;
+  }
+  .empty .big { font-size: 42px; opacity: .35; }
+  .empty small { font-size: 12px; opacity: .7; }
+  .hidden { display: none !important; }
+  .drop-active { outline: 2px dashed #0e639c; outline-offset: -6px; }
+
+  .statusbar {
+    height: 26px; flex: none; background: #007acc; color: #fff;
+    display: flex; align-items: center; gap: 16px; padding: 0 12px; font-size: 11px;
+  }
+  .statusbar span { white-space: nowrap; }
+  .statusbar .right { margin-left: auto; display: flex; gap: 16px; }
+  .err-tip { color: #ff8080; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <button class="primary" id="btnOpen">📂 打开文件</button>
+    <button id="btnReload" title="重新读取当前文件">↻ 重载</button>
+    <span class="fname" id="fname">未打开文件（当前为演示数据）</span>
+    <div class="sep"></div>
+    <input type="text" id="search" placeholder="搜索（支持正则）…" spellcheck="false">
+    <button id="btnPrev" title="上一个匹配">↑</button>
+    <button id="btnNext" title="下一个匹配">↓</button>
+    <span id="hitInfo" style="min-width:56px;opacity:.8">0 / 0</span>
+    <label class="chk"><input type="checkbox" id="caseSensitive">区分大小写</label>
+    <label class="chk"><input type="checkbox" id="regexMode">正则</label>
+    <label class="chk"><input type="checkbox" id="onlyMatch">仅匹配行</label>
+    <div class="sep"></div>
+    <select id="levelFilter" title="按日志级别过滤">
+      <option value="all">全部级别</option>
+      <option value="ERROR">ERROR</option>
+      <option value="WARN">WARN</option>
+      <option value="INFO">INFO</option>
+      <option value="DEBUG">DEBUG</option>
+      <option value="TRACE">TRACE</option>
+    </select>
+    <select id="mode" title="高亮模式">
+      <option value="auto">自动模式</option>
+      <option value="log">日志模式</option>
+      <option value="code">代码模式</option>
+    </select>
+    <select id="encoding" title="文件编码">
+      <option value="utf-8">UTF-8</option>
+      <option value="gbk">GBK</option>
+    </select>
+    <div class="spacer-flex"></div>
+    <button id="btnFollow" class="on" title="自动滚动到最新">⏬ 跟随</button>
+    <button id="btnTheme" title="切换主题">🌙 主题</button>
+  </div>
+
+  <div class="main" id="dropZone">
+    <div class="gutter"><div class="gutter-inner" id="gutterInner"></div></div>
+    <div class="viewport" id="viewport" tabindex="0">
+      <div class="spacer" id="spacer"><div class="lines" id="lines"></div></div>
+    </div>
+    <div class="empty hidden" id="empty">
+      <div class="big">📄</div>
+      <div>把文件拖到这里，或点击「打开文件」</div>
+      <small>支持 .log .txt .js .py .json 等 · 大文件使用虚拟滚动</small>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span id="stFile">DEMO.log</span>
+    <span id="stLines">0 行</span>
+    <span id="stShow">显示 0 行</span>
+    <span id="stSize">—</span>
+    <span class="err-tip" id="stErr"></span>
+    <div class="right">
+      <span>Ctrl+O 打开 · Ctrl+F 搜索</span>
+      <span id="stMode">日志模式</span>
+      <span id="stEnc">UTF-8</span>
+    </div>
+  </div>
+</div>
+<input type="file" id="fileInput" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  var LINE_HEIGHT = 21;
+  var BUFFER = 12;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var viewport = $('viewport'), spacer = $('spacer'), linesEl = $('lines');
+  var gutterInner = $('gutterInner'), fileInput = $('fileInput');
+
+  var srcLines = [];        // 原始行
+  var viewLines = [];       // 过滤后的行 {index, text}
+  var viewMatches = [];     // 命中行在 viewLines 中的下标
+  var matchPtr = -1;
+  var currentView = -1;
+  var fileHandle = null;
+  var fileName = 'DEMO.log';
+  var fileSize = 0;
+  var searchRe = null;
+  var rafPending = false;
+
+  // ---------- 工具 ----------
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(2) + ' MB';
+  }
+  function setErr(msg) { $('stErr').textContent = msg || ''; }
+
+  // ---------- 分词高亮 ----------
+  var LOG_RE = /(\b(?:FATAL|ERROR|EROR|WARN|WARNING|INFO|DEBUG|TRACE)\b)|(\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?|\b\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\b)|(\[[^\]\n]{1,40}\])/g;
+  var CODE_RE = /(\/\/[^\n]*|#[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\b(?:function|const|let|var|if|else|for|while|do|return|class|def|import|from|export|public|private|protected|void|int|string|bool|true|false|null|None|async|await|try|catch|finally|throw|new|this|super|package|include|using|struct|interface|enum|switch|case|break|continue|yield|lambda|pass|static|final)\b)|(\b\d+(?:\.\d+)?\b)/g;
+
+  function tokenize(text, mode) {
+    var re = mode === 'code' ? CODE_RE : LOG_RE;
+    var parts = [], last = 0, m, cls;
+    re.lastIndex = 0;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push({ text: text.slice(last, m.index), cls: '' });
+      if (mode === 'code') {
+        cls = m[1] ? 'tok-comment' : m[2] ? 'tok-string' : m[3] ? 'tok-keyword' : 'tok-number';
+      } else {
+        if (m[1]) {
+          var lv = m[1].toUpperCase().replace('WARNING', 'WARN').replace('EROR', 'ERROR');
+          cls = 'tok-' + lv.toLowerCase();
+        } else cls = m[2] ? 'tok-time' : 'tok-tag';
+      }
+      parts.push({ text: m[0], cls: cls });
+      last = m.index + m[0].length;
+      if (m[0].length === 0) re.lastIndex++;
+    }
+    if (last < text.length) parts.push({ text: text.slice(last), cls: '' });
+    return parts;
+  }
+
+  function renderPart(part) {
+    var body = '', last = 0, m;
+    if (searchRe) {
+      searchRe.lastIndex = 0;
+      while ((m = searchRe.exec(part.text)) !== null) {
+        body += esc(part.text.slice(last, m.index));
+        body += '<span class="hit">' + esc(m[0]) + '</span>';
+        last = m.index + m[0].length;
+        if (m[0].length === 0) searchRe.lastIndex++;
+      }
+    }
+    body += esc(part.text.slice(last));
+    return part.cls ? '<span class="' + part.cls + '">' + body + '</span>' : body;
+  }
+
+  function renderLine(text, mode) {
+    var parts = tokenize(text, mode), out = '';
+    for (var i = 0; i < parts.length; i++) out += renderPart(parts[i]);
+    return out;
+  }
+
+  // ---------- 搜索与过滤 ----------
+  function buildSearchRe() {
+    var q = $('search').value;
+    setErr('');
+    if (!q) return null;
+    var pattern;
+    if ($('regexMode').checked) {
+      try { pattern = q; new RegExp(q); }
+      catch (e) { setErr('正则无效: ' + e.message); return null; }
+    } else {
+      pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    try { return new RegExp(pattern, $('caseSensitive').checked ? 'g' : 'gi'); }
+    catch (e) { setErr('搜索错误: ' + e.message); return null; }
+  }
+
+  function detectMode() {
+    var sel = $('mode').value;
+    if (sel !== 'auto') return sel;
+    // 简单探测：前 80 行里日志级别词出现 3 次以上就当日志
+    var sample = srcLines.slice(0, 80).join('\n');
+    var n = (sample.match(/\b(FATAL|ERROR|WARN|WARNING|INFO|DEBUG|TRACE)\b/g) || []).length;
+    return n >= 3 ? 'log' : 'code';
+  }
+
+  function applyFilter() {
+    searchRe = buildSearchRe();
+    var level = $('levelFilter').value;
+    var only = $('onlyMatch').checked && !!searchRe;
+    var mode = detectMode();
+    $('stMode').textContent = mode === 'log' ? '日志模式' : '代码模式';
+
+    viewLines = []; viewMatches = [];
+    for (var i = 0; i < srcLines.length; i++) {
+      var text = srcLines[i];
+      if (level !== 'all' && text.toUpperCase().indexOf(level) < 0) continue;
+      var matched = false;
+      if (searchRe) { searchRe.lastIndex = 0; matched = searchRe.test(text); }
+      if (only && !matched) continue;
+      viewLines.push({ index: i, text: text });
+      if (matched) viewMatches.push(viewLines.length - 1);
+    }
+    matchPtr = viewMatches.length ? 0 : -1;
+    currentView = viewMatches.length ? viewMatches[0] : -1;
+    $('hitInfo').textContent = viewMatches.length ? '1 / ' + viewMatches.length : '0 / 0';
+    spacer.style.height = (viewLines.length * LINE_HEIGHT) + 'px';
+    gutterInner.style.height = (viewLines.length * LINE_HEIGHT) + 'px';
+    $('stLines').textContent = srcLines.length.toLocaleString() + ' 行';
+    $('stShow').textContent = '显示 ' + viewLines.length.toLocaleString() + ' 行';
+    viewport.scrollTop = 0;
+    render();
+  }
+
+  // ---------- 虚拟滚动渲染 ----------
+  function render() {
+    var total = viewLines.length;
+    var st = viewport.scrollTop;
+    var start = Math.max(0, Math.floor(st / LINE_HEIGHT) - BUFFER);
+    var end = Math.min(total, Math.ceil((st + viewport.clientHeight) / LINE_HEIGHT) + BUFFER);
+    var mode = detectMode();
+    var h = '', g = '';
+    for (var i = start; i < end; i++) {
+      var item = viewLines[i];
+      var cur = i === currentView ? ' cur' : '';
+      h += '<div class="line' + cur + '" style="top:' + (i * LINE_HEIGHT) + 'px">' + renderLine(item.text, mode) + '</div>';
+      g += '<div class="ln' + cur + '" style="top:' + (i * LINE_HEIGHT) + 'px">' + (item.index + 1) + '</div>';
+    }
+    linesEl.innerHTML = h;
+    gutterInner.innerHTML = g;
+    gutterInner.style.transform = 'translateY(' + (-st) + 'px)';
+  }
+  function scheduleRender() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () { rafPending = false; render(); });
+  }
+
+  // ---------- 文件读取 ----------
+  function setContent(text, name, size) {
+    srcLines = text.split(/\r\n|\n|\r/);
+    fileName = name || '未命名';
+    fileSize = size || text.length;
+    $('fname').textContent = fileName;
+    $('stFile').textContent = fileName;
+    $('stSize').textContent = fmtSize(fileSize);
+    $('empty').classList.toggle('hidden', srcLines.length > 0);
+    applyFilter();
+  }
+
+  async function readBlob(blob, enc) {
+    var buf = await blob.arrayBuffer();
+    return new TextDecoder(enc).decode(buf);
+  }
+
+  async function openCurrent() {
+    if (!fileHandle) return;
+    try {
+      var file = await fileHandle.getFile();
+      var text = await readBlob(file, $('encoding').value);
+      setContent(text, file.name, file.size);
+    } catch (e) { setErr('读取失败: ' + e.message); }
+  }
+
+  async function openFile() {
+    setErr('');
+    if (window.showOpenFilePicker) {
+      try {
+        var handles = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: '日志 / 代码文件', accept: {
+            'text/plain': ['.log', '.txt', '.text', '.out'],
+            'text/javascript': ['.js', '.ts', '.jsx', '.tsx', '.json'],
+            'text/x-python': ['.py', '.java', '.c', '.cpp', '.h', '.css', '.html', '.md', '.yaml', '.yml', '.xml']
+          }}]
+        });
+        fileHandle = handles[0];
+        await openCurrent();
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // 不支持或被拒绝时回退到 input
+      }
+    }
+    fileInput.click();
+  }
+
+  fileInput.addEventListener('change', async function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    fileHandle = null;
+    var text = await readBlob(f, $('encoding').value);
+    setContent(text, f.name, f.size);
+    fileInput.value = '';
+  });
+
+  // 拖拽打开
+  var dropZone = $('dropZone');
+  dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drop-active'); });
+  dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drop-active'); });
+  dropZone.addEventListener('drop', async function (e) {
+    e.preventDefault(); dropZone.classList.remove('drop-active');
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    fileHandle = null;
+    var text = await readBlob(f, $('encoding').value);
+    setContent(text, f.name, f.size);
+  });
+
+  // ---------- 交互 ----------
+  $('btnOpen').onclick = openFile;
+  $('btnReload').onclick = function () {
+    if (fileHandle) openCurrent();
+    else { setErr('演示数据无法重载，请打开真实文件'); }
+  };
+  $('search').addEventListener('input', applyFilter);
+  ['caseSensitive', 'regexMode', 'onlyMatch', 'levelFilter', 'mode', 'encoding'].forEach(function (id) {
+    $(id).addEventListener('change', applyFilter);
+  });
+
+  function gotoMatch(step) {
+    if (!viewMatches.length) return;
+    matchPtr = (matchPtr + step + viewMatches.length) % viewMatches.length;
+    currentView = viewMatches[matchPtr];
+    $('hitInfo').textContent = (matchPtr + 1) + ' / ' + viewMatches.length;
+    var target = currentView * LINE_HEIGHT - viewport.clientHeight / 2;
+    viewport.scrollTop = Math.max(0, target);
+    render();
+  }
+  $('btnPrev').onclick = function () { gotoMatch(-1); };
+  $('btnNext').onclick = function () { gotoMatch(1); };
+  $('search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); }
+    if (e.key === 'Escape') { this.value = ''; applyFilter(); }
+  });
+
+  viewport.addEventListener('scroll', scheduleRender);
+  viewport.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('.line') : null;
+    if (!el) return;
+    var top = parseFloat(el.style.top);
+    currentView = Math.round(top / LINE_HEIGHT);
+    render();
+  });
+  window.addEventListener('resize', scheduleRender);
+
+  var follow = true;
+  $('btnFollow').onclick = function () {
+    follow = !follow;
+    this.classList.toggle('on', follow);
+    if (follow) viewport.scrollTop = viewport.scrollHeight;
+  };
+  // 打开真实文件后每 2 秒检查更新，实现 tail -f 效果
+  setInterval(function () {
+    if (!follow || !fileHandle || document.hidden) return;
+    openCurrent();
+    viewport.scrollTop = viewport.scrollHeight;
+  }, 2000);
+
+  var light = false;
+  $('btnTheme').onclick = function () {
+    light = !light;
+    document.body.classList.toggle('light', light);
+    this.textContent = light ? '☀️ 主题' : '🌙 主题';
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('search').focus(); $('search').select(); }
+  });
+
+  // ---------- 演示数据 ----------
+  function makeDemo() {
+    var levels = ['INFO', 'INFO', 'DEBUG', 'INFO', 'WARN', 'INFO', 'DEBUG', 'ERROR', 'INFO', 'TRACE'];
+    var msgs = [
+      'Server started on port 8080', 'Accepted connection from 10.0.0.%n',
+      'Cache hit ratio: 0.9%n', 'Processing request id=req_%n',
+      'Database query finished in %nms', 'User session refreshed',
+      'Retrying upstream call (attempt %n)', 'Config reloaded successfully',
+      'Disk usage at %n%', 'Health check passed'
+    ];
+    var out = [];
+    var base = Date.now() - 300000;
+    for (var i = 0; i < 5000; i++) {
+      var lv = levels[i % levels.length];
+      var t = new Date(base + i * 60);
+      var ts = t.toISOString().slice(0, 19).replace('T', ' ');
+      var msg = msgs[i % msgs.length].replace(/%n/g, String(i % 997 + 1));
+      out.push(ts + ' [' + lv + '] [main] ' + msg);
+    }
+    return out.join('\n');
+  }
+
+  setContent(makeDemo(), 'DEMO.log', 0);
+  viewport.scrollTop = viewport.scrollHeight;
+})();
+</script>
+</body>
+</html>
