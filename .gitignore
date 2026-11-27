@@ -1,0 +1,38 @@
+# 编译产物
+bin/
+obj/
+NativeLogViewer/bin/
+NativeLogViewer/obj/
+
+# 发布产物（exe / 安装包体积大，不入库，用源码自行编译）
+NativeLogViewer/publish-light/
+NativeLogViewer/publish-standalone/
+NativeLogViewer/installer/
+
+# 第三方工具（Inno Setup 本体）
+tools/InnoSetup/
+
+# VS / Rider 用户文件
+*.csproj.user
+.vs/
+.idea/
+
+# WorkBuddy 项目数据（非源码）
+.workbuddy/
+
+# 临时 / 截图 / 测试文件
+*.tmp
+*.log
+*_check.png
+scroll-*.png
+theme-*.png
+vsc-*.png
+font-*.png
+run-*.png
+tools/*.png
+tools/cpp-debug/
+
+# 系统文件
+Thumbs.db
+desktop.ini
+.DS_Store
