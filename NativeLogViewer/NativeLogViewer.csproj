@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <Product>LiteViewer 轻量日志查看器</Product>
+    <Company>alxendentaus</Company>
+    <Authors>alxendentaus</Authors>
+    <Copyright>Copyright (c) alxendentaus</Copyright>
+    <Description>轻量、可编辑、多主题的日志/代码查看器，支持系统右键菜单打开与 Python/C++ 简易运行。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Resources\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
